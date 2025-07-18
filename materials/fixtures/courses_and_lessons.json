@@ -1,0 +1,22 @@
+[
+    {
+        "model": "materials.course",
+        "pk": 1,
+        "fields": {
+            "title": "Курс по Django",
+            "preview": "",
+            "description": "Учимся создавать сайты на Django"
+        }
+    },
+    {
+        "model": "materials.lesson",
+        "pk": 1,
+        "fields": {
+            "title": "Введение",
+            "description": "Основы Django",
+            "preview": "",
+            "video_link": "https://example.com/video",
+            "course": 1
+        }
+    }
+]
