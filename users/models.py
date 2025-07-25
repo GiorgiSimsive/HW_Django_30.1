@@ -1,7 +1,5 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.conf import settings
-from materials.models import Course, Lesson
 from django.contrib.auth.base_user import BaseUserManager
 
 
@@ -54,8 +52,8 @@ class Payment(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='Пользователь')
     date = models.DateTimeField(verbose_name='Дата оплаты')
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, blank=True, null=True, verbose_name='Курс')
-    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, blank=True, null=True, verbose_name='Урок')
+    course = models.ForeignKey('materials.Course', on_delete=models.CASCADE, blank=True, null=True, verbose_name='Курс')
+    lesson = models.ForeignKey('materials.Lesson', on_delete=models.CASCADE, blank=True, null=True, verbose_name='Урок')
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Сумма оплаты')
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, verbose_name='Способ оплаты')
 
