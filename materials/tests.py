@@ -1,85 +1,34 @@
-from rest_framework.test import APITestCase, APIClient
-from rest_framework import status
+from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
-
-
-from materials.models import Lesson, Course
+from materials.models import Course, Subscription
+from rest_framework import status
+from django.urls import reverse
 
 User = get_user_model()
 
 
-class LessonCourseTests(APITestCase):
+class SubscriptionTestCase(APITestCase):
+
     def setUp(self):
-        self.client = APIClient()
-
-        # Создаем двух пользователей
         self.user = User.objects.create_user(email="user@example.com", password="pass")
-        self.admin = User.objects.create_superuser(email="admin@example.com", password="adminpass")
+        self.course = Course.objects.create(title="Тестовый курс", description="Описание", owner=self.user)
+        self.subscribe_url = reverse("subscribe-toggle")
 
-        # Создаем курс и урок
-        self.course = Course.objects.create(title="Курс 1", description="Описание курса")
-        self.lesson = Lesson.objects.create(title="Урок 1", description="Описание урока", course=self.course,
-                                            owner=self.admin)
-
-    def authenticate_as_user(self):
+    def test_subscribe_to_course(self):
         self.client.force_authenticate(user=self.user)
-
-    def authenticate_as_admin(self):
-        self.client.force_authenticate(user=self.admin)
-
-    def test_list_lessons(self):
-        self.authenticate_as_user()
-        response = self.client.get('/api/materials/lessons/')
+        response = self.client.post(self.subscribe_url, {"course_id": self.course.id})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["message"], "Подписка добавлена")
+        self.assertTrue(Subscription.objects.filter(user=self.user, course=self.course).exists())
 
-    def test_create_lesson_by_admin(self):
-        self.authenticate_as_admin()
-        data = {
-            "title": "Новый урок",
-            "description": "Описание нового урока",
-            "course": self.course.id
-        }
-        response = self.client.post('/api/materials/lessons/', data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_update_lesson(self):
-        self.authenticate_as_admin()
-        url = f'/api/materials/lessons/{self.lesson.id}/'
-        data = {"title": "Обновленный заголовок"}
-        response = self.client.patch(url, data)
+    def test_unsubscribe_from_course(self):
+        self.client.force_authenticate(user=self.user)
+        self.client.post(self.subscribe_url, {"course_id": self.course.id})
+        response = self.client.post(self.subscribe_url, {"course_id": self.course.id})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['title'], "Обновленный заголовок")
+        self.assertEqual(response.data["message"], "Подписка удалена")
+        self.assertFalse(Subscription.objects.filter(user=self.user, course=self.course).exists())
 
-    def test_delete_lesson(self):
-        self.authenticate_as_admin()
-        url = f'/api/materials/lessons/{self.lesson.id}/'
-        response = self.client.delete(url)
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-
-    def test_user_cannot_create_lesson(self):
-        self.authenticate_as_user()
-        data = {
-            "title": "Недопустимо",
-            "description": "Обычный пользователь",
-            "course": self.course.id
-        }
-        response = self.client.post('/api/materials/lessons/', data)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_subscription(self):
-        self.authenticate_as_user()
-        url = f'/api/materials/courses/{self.course.id}/subscribe/'
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_duplicate_subscription(self):
-        self.authenticate_as_user()
-        url = f'/api/materials/courses/{self.course.id}/subscribe/'
-        self.client.post(url)
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_unauthenticated_cannot_access(self):
-        self.client.force_authenticate(user=None)
-        response = self.client.get('/api/materials/lessons/')
+    def test_subscribe_unauthorized(self):
+        response = self.client.post(self.subscribe_url, {"course_id": self.course.id})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
