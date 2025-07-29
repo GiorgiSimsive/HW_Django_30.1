@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'users',
     'materials',
+    'drf_yasg',
 ]
 
 MIDDLEWARE = [
@@ -119,3 +120,4 @@ REST_FRAMEWORK = {
     ]
 }
 
+STRIPE_API_KEY = os.getenv('STRIPE_API_KEY')

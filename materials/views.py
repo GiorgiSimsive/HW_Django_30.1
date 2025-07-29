@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .paginators import CustomPagination
+from .services.stripe_service import create_stripe_product, create_stripe_price, create_checkout_session
 
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -65,3 +66,19 @@ class SubscriptionToggleView(APIView):
             message = "Подписка добавлена"
 
         return Response({"message": message})
+
+
+class StripePaymentView(APIView):
+    def post(self, request):
+        name = request.data.get("name")
+        amount = request.data.get("amount")
+
+        product_id = create_stripe_product(name)
+        price_id = create_stripe_price(product_id, amount)
+        session_url = create_checkout_session(
+            price_id,
+            success_url="http://localhost:8000/success/",
+            cancel_url="http://localhost:8000/cancel/"
+        )
+
+        return Response({"checkout_url": session_url})
