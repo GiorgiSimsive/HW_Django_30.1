@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .paginators import CustomPagination
-from .services.stripe_service import create_stripe_product, create_stripe_price, create_checkout_session
+from .services.stripe_service import create_stripe_product, create_stripe_price, create_checkout_session, create_stripe_checkout_session
 
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -81,4 +81,15 @@ class StripePaymentView(APIView):
             cancel_url="http://localhost:8000/cancel/"
         )
 
+        return Response({"checkout_url": session_url})
+
+
+class PaymentSessionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        course_id = request.data.get("course_id")
+        course = Course.objects.get(id=course_id)
+
+        session_url = create_stripe_checkout_session(request.user, course)
         return Response({"checkout_url": session_url})
