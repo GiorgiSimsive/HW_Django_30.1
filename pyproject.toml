@@ -21,6 +21,7 @@ stripe = "^12.3.0"
 celery = "^5.5.3"
 django-celery-beat = "^2.8.1"
 redis = "^6.2.0"
+gunicorn = "22.0"
 
 
 [build-system]
