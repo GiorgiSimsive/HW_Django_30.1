@@ -1,0 +1,113 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        ports: [ "5432:5432" ]
+        options: >-
+          --health-cmd="pg_isready -U ${{ secrets.POSTGRES_USER }} -d ${{ secrets.POSTGRES_DB }}"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+
+    env:
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      DEBUG: "False"
+      NAME: ${{ secrets.POSTGRES_DB }}
+      USER: ${{ secrets.POSTGRES_USER }}
+      PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      HOST: localhost
+      PORT: "5432"
+      DATABASE_URL: postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/${{ secrets.POSTGRES_DB }}
+      DJANGO_SETTINGS_MODULE: ${{ secrets.DJANGO_SETTINGS_MODULE }}
+      CELERY_APP: ${{ secrets.CELERY_APP }}
+      STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install poetry==1.8.3
+
+      - name: Cache Poetry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: poetry-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --no-root
+
+      - name: Run migrations
+        run: poetry run python manage.py migrate --noinput
+
+      - name: Run tests
+        run: poetry run pytest -q
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build & Push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/giorgisimsive/hw-django-30-1:latest
+            ghcr.io/giorgisimsive/hw-django-30-1:${{ github.sha }}
+
+      - name: Deploy to Yandex Cloud VM
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: true
+          script: |
+            set -e
+            cd /home/ubuntu/app
+
+            echo "Pulling latest images..."
+            docker compose -f docker-compose.prod.yml pull web worker beat
+
+            echo "Running migrations..."
+            docker compose -f docker-compose.prod.yml run --rm web python manage.py migrate --noinput
+
+            echo "Collecting static files..."
+            docker compose -f docker-compose.prod.yml run --rm web python manage.py collectstatic --noinput
+
+            echo "Restarting services..."
+            docker compose -f docker-compose.prod.yml up -d
+
+            echo "Cleaning old images..."
+            docker image prune -af --filter "until=168h" || true
