@@ -49,24 +49,33 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install Poetry
-        run: pip install poetry
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
 
-      - name: Install dependencies
-        run: poetry install --no-interaction
+      - name: Install dependencies (poetry)
+        run: |
+          poetry install --no-interaction
+
+      - name: Install pytest
+        run: |
+          pip install pytest
 
       - name: Run migrations
-        run: python manage.py migrate --noinput
+        run: |
+          python manage.py migrate --noinput
 
       - name: Run tests
-        run: pytest --maxfail=1 --disable-warnings -q
+        run: |
+          pytest --maxfail=1 --disable-warnings -q
 
   deploy:
     name: Deploy to Server
