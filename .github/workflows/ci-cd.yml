@@ -1,0 +1,142 @@
+name: CI & CD
+
+on:
+  push:
+    branches:
+      - '**'                  # запускаем тесты на любой пуш
+  workflow_dispatch:          # и возможность запустить вручную
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hw_django
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d hw_django"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping || exit 1"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      # Django/приложение будет брать эти переменные
+      DJANGO_SETTINGS_MODULE: myproject.settings
+      DEBUG: "False"
+      NAME: hw_django
+      USER: postgres
+      PASSWORD: postgres
+      HOST: 127.0.0.1
+      PORT: "5432"
+      REDIS_HOST: 127.0.0.1
+      CELERY_BROKER_URL: redis://127.0.0.1:6379/0
+      CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/1
+      CELERY_APP: myproject
+      # заглушка для Stripe, чтобы тесты не падали
+      STRIPE_API_KEY: sk_test_your_key_here
+      # чтобы Poetry ставил в системное окружение (без виртуалки)
+      POETRY_VIRTUALENVS_CREATE: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: |
+          python -m pip install --upgrade pip
+          pip install pipx
+          pipx ensurepath
+          pipx install poetry
+
+      - name: Cache Poetry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: poetry-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            poetry-${{ runner.os }}-
+
+      - name: Install deps
+        run: |
+          poetry install --no-interaction
+
+      - name: Prepare database (migrate)
+        run: |
+          python manage.py migrate --noinput
+
+      - name: Run tests
+        run: |
+          pytest -q
+
+  deploy:
+    name: Deploy to server
+    needs: test
+    if: github.ref == 'refs/heads/develop'    # деплоим только из develop
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (for using repo data if needed)
+        uses: actions/checkout@v4
+
+      - name: Add SSH known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }} || {
+              # если каталог ещё не создан — клонируем
+              cd /home/${{ secrets.SSH_USER }}
+              git clone git@github.com:${{ github.repository }}.git HW_Django_30.1
+              cd ${{ secrets.DEPLOY_PATH }}
+            }
+
+            # Переключаемся на нужную ветку и подтягиваем изменения
+            git fetch --all --prune
+            git checkout ${DEPLOY_BRANCH:-develop}
+            git pull --ff-only origin ${DEPLOY_BRANCH:-develop}
+
+            # На сервере .env уже подготовлен (или .env.prod -> .env)
+            if [ -f ".env.prod" ] && [ ! -f ".env" ]; then
+              cp .env.prod .env
+            fi
+
+            # Поднимаем контейнеры
+            docker compose down
+            # ВНИМАНИЕ: не трогаем тома (-v), чтобы не терять данные БД
+            docker compose up -d --build
+
+            # Немного уборки
+            docker image prune -f
