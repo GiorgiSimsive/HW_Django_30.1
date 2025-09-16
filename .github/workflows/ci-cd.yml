@@ -61,21 +61,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install poetry
 
-      - name: Install dependencies (poetry)
-        run: |
-          poetry install --no-interaction
-
-      - name: Install pytest
-        run: |
-          pip install pytest
+      - name: Install dependencies
+        run: poetry install --no-interaction
 
       - name: Run migrations
-        run: |
-          python manage.py migrate --noinput
+        run: python manage.py migrate --noinput
 
-      - name: Run tests
-        run: |
-          pytest --maxfail=1 --disable-warnings -q
+      - name: Run tests (Django test runner)
+        run: python manage.py test --verbosity=2
 
   deploy:
     name: Deploy to Server
@@ -86,7 +79,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
