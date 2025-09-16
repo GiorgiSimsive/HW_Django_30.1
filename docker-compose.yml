@@ -37,9 +37,9 @@ services:
       - .env
     environment:
       DATABASE_HOST: db
-      POSTGRES_DB: ${NAME}
-      POSTGRES_USER: ${USER}
-      POSTGRES_PASSWORD: ${PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       REDIS_HOST: redis
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
