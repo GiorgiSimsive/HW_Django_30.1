@@ -6,4 +6,4 @@
    * Postgres: docker compose exec db psql -U $USER -d $NAME -c '\l'
    * Redis: docker compose exec redis redis-cli PING → PONG
    * Celery: docker compose logs -f celery
-
+.
