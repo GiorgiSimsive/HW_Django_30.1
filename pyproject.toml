@@ -4,10 +4,24 @@ version = "0.1.0"
 description = ""
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
-packages = [{include = "hw_django_30"}]
+packages = [{include = "myproject"}]
 
 [tool.poetry.dependencies]
 python = "^3.12"
+django = "^5.2.4"
+djangorestframework = "^3.16.0"
+pillow = "^11.3.0"
+psycopg2 = "^2.9.10"
+python-dotenv = "^1.1.1"
+django-filter = "^25.1"
+djangorestframework-simplejwt = "^5.5.0"
+coverage = "^7.10.0"
+drf-yasg = "^1.21.10"
+stripe = "^12.3.0"
+celery = "^5.5.3"
+django-celery-beat = "^2.8.1"
+redis = "^6.2.0"
+gunicorn = "22.0"
 
 
 [build-system]
